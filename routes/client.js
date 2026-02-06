@@ -3,14 +3,28 @@ const Client = require("../models/clientschem");
 const generateToken = require("../utils/jwt");
 const nodemailer = require("nodemailer");
 
-/* ================= EMAIL CONFIG ================= */
+/* ================= EMAIL CONFIG (RENDER FIX) ================= */
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // TLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
+});
+
+// Test mail config (Debug)
+transporter.verify((err, success) => {
+  if (err) {
+    console.log("❌ Mail Error:", err);
+  } else {
+    console.log("✅ Mail Server Ready");
+  }
 });
 
 /* ================= OTP GENERATOR ================= */
@@ -40,15 +54,20 @@ module.exports = (app) => {
         email,
         password: hash,
         otp,
-        otpExpire: Date.now() + 5 * 60 * 1000, // 5 min
+        otpExpire: Date.now() + 5 * 60 * 1000,
         isVerified: false,
       });
 
       await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: `"Auth System" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: "Your OTP Verification Code",
-        text: `Your OTP is ${otp}. Valid for 5 minutes.`,
+        subject: "Verify Your Account - OTP",
+        html: `
+          <h2>Email Verification</h2>
+          <p>Your OTP is:</p>
+          <h1>${otp}</h1>
+          <p>Valid for 5 minutes</p>
+        `,
       });
 
       res.json({
@@ -57,7 +76,7 @@ module.exports = (app) => {
       });
 
     } catch (err) {
-      console.log(err);
+      console.log("Signup Error:", err);
       res.status(500).json({ message: "Signup failed" });
     }
   });
@@ -79,7 +98,6 @@ module.exports = (app) => {
       if (!match)
         return res.status(400).json({ message: "Invalid credentials" });
 
-      // Login OTP
       const otp = generateOTP();
 
       client.otp = otp;
@@ -87,10 +105,14 @@ module.exports = (app) => {
       await client.save();
 
       await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: `"Auth System" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: "Login OTP",
-        text: `Your login OTP is ${otp}`,
+        html: `
+          <h2>Login Verification</h2>
+          <h1>${otp}</h1>
+          <p>Valid for 5 minutes</p>
+        `,
       });
 
       res.json({
@@ -99,6 +121,7 @@ module.exports = (app) => {
       });
 
     } catch (err) {
+      console.log("Login Error:", err);
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -114,10 +137,7 @@ module.exports = (app) => {
       if (!client)
         return res.status(400).json({ message: "User not found" });
 
-      if (
-        client.otp !== otp ||
-        client.otpExpire < Date.now()
-      ) {
+      if (client.otp !== otp || client.otpExpire < Date.now()) {
         return res.status(400).json({ message: "Invalid or expired OTP" });
       }
 
@@ -132,6 +152,7 @@ module.exports = (app) => {
       });
 
     } catch (err) {
+      console.log("Verify Error:", err);
       res.status(500).json({ message: "OTP verification failed" });
     }
   });
@@ -153,15 +174,20 @@ module.exports = (app) => {
       await client.save();
 
       await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: `"Auth System" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: "Reset Password OTP",
-        text: `Your OTP is ${otp}`,
+        html: `
+          <h2>Password Reset</h2>
+          <h1>${otp}</h1>
+          <p>Valid for 5 minutes</p>
+        `,
       });
 
       res.json({ message: "OTP sent" });
 
-    } catch {
+    } catch (err) {
+      console.log("Forgot Error:", err);
       res.status(500).json({ message: "Failed to send OTP" });
     }
   });
@@ -174,11 +200,7 @@ module.exports = (app) => {
 
       const client = await Client.findOne({ email });
 
-      if (
-        !client ||
-        client.otp !== otp ||
-        client.otpExpire < Date.now()
-      ) {
+      if (!client || client.otp !== otp || client.otpExpire < Date.now()) {
         return res.status(400).json({ message: "Invalid OTP" });
       }
 
@@ -192,7 +214,8 @@ module.exports = (app) => {
 
       res.json({ message: "Password updated" });
 
-    } catch {
+    } catch (err) {
+      console.log("Reset Error:", err);
       res.status(500).json({ message: "Reset failed" });
     }
   });
