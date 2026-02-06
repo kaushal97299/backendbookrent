@@ -44,22 +44,6 @@ const clientSchema = new mongoose.Schema(
       enum: ["client", "admin"],
     },
 
-    // OTP SYSTEM
-    otp: {
-      type: String,
-      default: null,
-    },
-
-    otpExpire: {
-      type: Date,
-      default: null,
-    },
-
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
-
   },
   { timestamps: true }
 );
