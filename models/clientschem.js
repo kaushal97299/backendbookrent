@@ -7,9 +7,13 @@ const clientSchema = new mongoose.Schema(
     email: {
       type: String,
       unique: true,
+      required: true,
     },
 
-    password: String,
+    password: {
+      type: String,
+      required: true,
+    },
 
     status: {
       type: String,
@@ -32,6 +36,7 @@ const clientSchema = new mongoose.Schema(
       default: null,
     },
 
+    // 🔹 EMAIL VERIFIED
     isVerified: {
       type: Boolean,
       default: false,
