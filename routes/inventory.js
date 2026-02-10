@@ -61,6 +61,9 @@ module.exports = (app) => {
           about: req.body.about,
           features: JSON.parse(req.body.features || "[]"),
           image: req.file ? `/uploads/${req.file.filename}` : "",
+
+          // always pending first
+          status: "pending",
         });
 
         res.json(car);
@@ -100,7 +103,13 @@ module.exports = (app) => {
         return res.status(404).json({ message: "Not found" });
       }
 
-      // delete image file
+      // ❌ only approved can delete
+      if (inventory.status !== "approved") {
+        return res.status(403).json({
+          message: "Only approved items can be deleted",
+        });
+      }
+
       if (inventory.image) {
         const imgPath = path.join(__dirname, "..", inventory.image);
         if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
@@ -113,7 +122,6 @@ module.exports = (app) => {
     }
   });
 
-  
   /* ================================================= */
   /* ============ UPDATE SINGLE FIELD (PATCH) ======== */
   /* ================================================= */
@@ -134,7 +142,13 @@ module.exports = (app) => {
         return res.status(404).json({ message: "Not found" });
       }
 
-      // special handling
+      // ❌ only approved can edit
+      if (inventory.status !== "approved") {
+        return res.status(403).json({
+          message: "Only approved items can be edited",
+        });
+      }
+
       if (field === "price") {
         inventory.price = Number(value);
       } else if (field === "features") {
@@ -151,9 +165,6 @@ module.exports = (app) => {
     }
   });
 
-  /* ================================================= */
-  /* ============== UPDATE IMAGE ONLY (PATCH) ======== */
-  /* ================================================= */
   app.patch(
     "/api/inventory/:id/image",
     protect,
@@ -173,7 +184,13 @@ module.exports = (app) => {
           return res.status(404).json({ message: "Not found" });
         }
 
-        // remove old image
+        // ❌ only approved can edit image
+        if (inventory.status !== "approved") {
+          return res.status(403).json({
+            message: "Only approved items can be edited",
+          });
+        }
+
         if (inventory.image) {
           const oldPath = path.join(__dirname, "..", inventory.image);
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);

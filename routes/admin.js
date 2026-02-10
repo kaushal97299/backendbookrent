@@ -79,7 +79,7 @@ module.exports = (app) => {
 =================================
 RESET LINK:
 
-http://localhost:3000/admin/reset-password?token=${resetToken}
+https://admin-riyg.vercel.app/access/admin/reset-password?token=${resetToken}
 =================================
       `);
 

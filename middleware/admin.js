@@ -1,34 +1,72 @@
 const jwt = require("jsonwebtoken");
-// const Admin = require("../models/adminschem"); // apna admin model
 
-const adminProtect = async (req, res, next) => {
+const adminProtect = (req, res, next) => {
   try {
-    const auth = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-    if (!auth || !auth.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "No token" });
+    // Check token exists
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token missing",
+      });
     }
 
-    const token = auth.split(" ")[1];
+    // Get token
+    const token = authHeader.split(" ")[1];
 
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token not found",
+      });
+    }
+
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Only admin allowed
-    if (decoded.role !== "admin") {
-      return res.status(403).json({ message: "Not admin" });
+    // Check admin role
+    if (!decoded.role || decoded.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Admin only",
+      });
     }
 
-    const admin = await Admin.findById(decoded.id).select("-password");
+    // Attach admin info
+    req.admin = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    };
 
-    if (!admin) {
-      return res.status(401).json({ message: "Admin not found" });
-    }
-
-    req.admin = admin; // alag attach
     next();
 
   } catch (err) {
-    res.status(401).json({ message: "Invalid token" });
+
+    console.error("ADMIN AUTH ERROR:", err.message);
+
+    // Token expired
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Session expired. Please login again.",
+      });
+    }
+
+    // Invalid token
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    // Other errors
+    return res.status(401).json({
+      success: false,
+      message: "Authentication failed",
+    });
   }
 };
 

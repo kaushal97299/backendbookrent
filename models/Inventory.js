@@ -18,7 +18,15 @@ const inventorySchema = new mongoose.Schema(
     image: String,
     about: String,
     features: [String],
+
+    // ✅ NEW FIELD (APPROVAL SYSTEM)
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
   },
+
   { timestamps: true }
 );
 

@@ -10,12 +10,26 @@ const app = express();
 
 /* ================= MIDDLEWARE ================= */
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",");
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: function (origin, callback) {
+
+      // Postman / server request allow
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+
+    },
     credentials: true,
   })
 );
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -40,6 +54,7 @@ require("./routes/auth")(app);
 require("./routes/client")(app);
 require("./routes/inventory")(app);
 require("./routes/admin")(app);
+require("./routes/adminInventory")(app);
 
 /* ================= START ================= */
 

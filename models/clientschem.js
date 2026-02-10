@@ -26,10 +26,7 @@ const clientSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 8,
-      match: [
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/,
-        "Password must contain uppercase, lowercase, number & special character",
-      ],
+    
     },
 
     status: {
