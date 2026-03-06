@@ -8,6 +8,7 @@ const wishlistSchema = new mongoose.Schema(
       required: true,
     },
 
+    
     car: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Inventory",
