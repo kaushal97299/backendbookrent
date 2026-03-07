@@ -1,31 +1,63 @@
 const Contact = require("../models/Contact");
 const userAuth = require("../middleware/userauth");
 const { Resend } = require("resend");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+/* ================= AUTO CREATE UPLOAD FOLDER ================= */
+
+const uploadDir = path.join(__dirname, "../uploads/contact");
+
+if (!fs.existsSync(uploadDir)) {
+fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+/* ================= FILE UPLOAD ================= */
+
+const storage = multer.diskStorage({
+
+destination:(req,file,cb)=>{
+cb(null, uploadDir);
+},
+
+filename:(req,file,cb)=>{
+cb(null, Date.now() + path.extname(file.originalname));
+}
+
+});
+
+const upload = multer({storage});
 
 module.exports = function(app){
 
 /* ================= CREATE CONTACT ================= */
 
-app.post("/api/contact", userAuth, async(req,res)=>{
+app.post("/api/contact", userAuth, upload.single("attachment"), async(req,res)=>{
 
 try{
 
-const {name,email,message,category,attachment} = req.body;
-
+const {name,email,message,category} = req.body;
 const user = req.user;
+
+let attachmentFile = "";
+
+if(req.file && req.file.filename){
+attachmentFile = req.file.filename;
+}
 
 /* SAVE MESSAGE */
 
 const contact = await Contact.create({
 
-userId: user.id,
+userId:user.id,
 name,
 email,
 message,
-category: category || "other",
-attachment: attachment || "",
+category:category || "other",
+attachment:attachmentFile,
 priority:"normal",
 status:"new"
 
@@ -36,7 +68,6 @@ status:"new"
 await resend.emails.send({
 
 from:"onboarding@resend.dev",
-
 to:process.env.ADMIN_EMAIL,
 
 subject:"New Contact Message",
@@ -48,7 +79,7 @@ html:`
 <p><b>User ID:</b> ${user.id}</p>
 <p><b>Name:</b> ${name}</p>
 <p><b>Email:</b> ${email}</p>
-<p><b>Category:</b> ${category}</p>
+<p><b>Category:</b> ${category || "other"}</p>
 <p><b>Message:</b> ${message}</p>
 
 `
@@ -61,7 +92,7 @@ message:"Message sent successfully. Our car dealer will contact you shortly."
 
 }catch(err){
 
-console.log(err);
+console.log("CONTACT ERROR:",err);
 res.status(500).json({message:"Server error"});
 
 }
@@ -141,7 +172,6 @@ repliedAt:new Date()
 await resend.emails.send({
 
 from:"onboarding@resend.dev",
-
 to:contact.email,
 
 subject:"Support Reply",
