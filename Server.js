@@ -67,6 +67,7 @@ require("./routes/myBooking")(app);
 require("./routes/notification")(app);
 require("./routes/invoice")(app);
 require("./routes/allbooking")(app);
+require("./routes/contact")(app);
 /* ================= START ================= */
 
 const PORT = process.env.PORT || 7000;
