@@ -1,14 +1,14 @@
 const bcrypt = require("bcryptjs");
 const axios = require("axios");
 const { OAuth2Client } = require("google-auth-library");
-const { Resend } = require("resend");
 const crypto = require("crypto");
+const sgMail = require("@sendgrid/mail");
 
 const User = require("../models/user");
 const generateToken = require("../utils/jwt");
 const userAuth = require("../middleware/userauth");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -170,8 +170,10 @@ app.post("/api/forgot-password", async(req,res)=>{
 try{
 
 const {email}=req.body;
+console.log("Forgot password request for email:", email);
 
 const user=await User.findOne({email});
+console.log("User found:", user);
 
 if(!user){
 return res.status(404).json({msg:"User not found"});
@@ -185,21 +187,22 @@ user.resetTokenExpire=new Date(Date.now()+1000*60*15);
 await user.save();
 
 const resetLink=`${process.env.FRONTEND_URL}/reset-password/${token}`;
+console.log("sending reset email to:", user.email);
 
-/* SEND EMAIL USING RESEND */
+/* SEND EMAIL USING SENDGRID */
 
-await resend.emails.send({
+await sgMail.send({
+  to: user.email,
+  from: "kaushalsharma97299@gmail.com",
+  subject: "Reset Password",
 
-from:"CarBooking <onboarding@resend.dev>",
-to:user.email,
-subject:"Reset Password",
+  text: `Reset your password using this link: ${resetLink}`,
 
-html:`
-<h3>Password Reset</h3>
-<p>Click below to reset your password</p>
-<a href="${resetLink}">${resetLink}</a>
-`
-
+  html: `
+  <h3>Password Reset</h3>
+  <p>Click below to reset your password</p>
+  <a href="${resetLink}">${resetLink}</a>
+  `
 });
 
 res.json({
@@ -208,8 +211,8 @@ msg:"Reset password link sent to email"
 });
 
 }catch(err){
-
-console.error(err);
+  console.log("sendgrid error:");
+  console.log(err.response?.body || err);
 res.status(500).json({error:"Server error"});
 
 }
