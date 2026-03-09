@@ -61,6 +61,7 @@ const claimSchema = new mongoose.Schema({
   rejectedAt:Date,
   paidAt:Date,
 
+  
 },{
   timestamps:true
 });

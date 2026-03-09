@@ -34,7 +34,7 @@ enum:[
 default:"other"
 },
 
-/* MESSAGE */
+/* MESSAGE  by*/
 
 message:{
 type:String,
