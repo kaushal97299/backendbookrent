@@ -68,6 +68,9 @@ require("./routes/notification")(app);
 require("./routes/invoice")(app);
 require("./routes/allbooking")(app);
 require("./routes/contact")(app);
+require("./routes/help")(app);
+require("./routes/claimRoutes")(app);
+require("./routes/adminClaims")(app);
 /* ================= START ================= */
 
 const PORT = process.env.PORT || 7000;
