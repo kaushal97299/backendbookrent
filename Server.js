@@ -78,6 +78,7 @@ require("./routes/contact")(app);
 require("./routes/help")(app);
 require("./routes/claimRoutes")(app);
 require("./routes/adminClaims")(app);
+require("./routes/bookadminall")(app);
 
 /* ================= START ================= */
 
