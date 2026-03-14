@@ -3,10 +3,32 @@ const axios = require("axios");
 const { OAuth2Client } = require("google-auth-library");
 const crypto = require("crypto");
 const sgMail = require("@sendgrid/mail");
-
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const User = require("../models/user");
 const generateToken = require("../utils/jwt");
 const userAuth = require("../middleware/userauth");
+
+const uploadPath = path.join(__dirname, "../uploads/avatars");
+
+// agar folder exist nahi karta to create karo
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+destination: function (req, file, cb) {
+cb(null, uploadPath);
+},
+filename: function (req, file, cb) {
+cb(null, Date.now() + "-" + file.originalname);
+}
+});
+const upload = multer({
+ storage,
+ limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
@@ -76,44 +98,53 @@ app.post("/api/register", async (req,res)=>{
 
 try{
 
-const {name,email,password}=req.body;
+const {name, email, password, confirmPassword} = req.body;  // <-- confirmPassword add kiya
 
-if(!name || !email || !password){
+// Basic required fields check
+if(!name || !email || !password || !confirmPassword){      // <-- confirmPassword bhi required
 return res.status(400).json({msg:"All fields required"});
 }
 
-const exist=await User.findOne({email});
+// Confirm password match check
+if(password !== confirmPassword) {                          // <-- NEW: confirm password check
+return res.status(400).json({msg:"Passwords do not match"});
+}
 
+// Check if user already exists
+const exist = await User.findOne({email});
 if(exist){
 return res.status(400).json({msg:"User already exists"});
 }
 
-const hash=await bcrypt.hash(password,10);
+// Hash password
+const hash = await bcrypt.hash(password, 10);
 
-const user=await User.create({
+// Create user
+const user = await User.create({
 name,
 email,
-password:hash,
-role:"user"
+password: hash,
+role: "user"
 });
 
-const token=generateToken(user,"user");
+// Generate token
+const token = generateToken(user, "user");
 
 res.status(201).json({
-msg:"Registered successfully",
+msg: "Registered successfully",
 token,
-user:{
-id:user._id,
-name:user.name,
-email:user.email,
-role:"user"
+user: {
+id: user._id,
+name: user.name,
+email: user.email,
+role: user.role
 }
 });
 
-}catch(err){
+} catch(err) {
 
 console.error(err);
-res.status(500).json({error:"Server error"});
+res.status(500).json({error: "Server error"});
 
 }
 
@@ -261,6 +292,9 @@ res.status(500).json({error:"Server error"});
 });
 
 
+
+
+
 /* ================= GET PROFILE ================= */
 
 app.get("/api/profile",userAuth,async(req,res)=>{
@@ -288,63 +322,58 @@ res.status(500).json({error:"Server error"});
 });
 
 
+
+
+
+
 /* ================= UPDATE PROFILE ================= */
+app.put("/api/profile", userAuth, upload.single("avatar"), async (req, res) => {
 
-app.put("/api/profile",userAuth,async(req,res)=>{
+console.log("HEADERS:", req.headers["content-type"]);
+console.log("FILE:", req.file);
 
-try{
+try {
 
-const {
-name,
-phone,
-bio,
-emergency,
-village,
-district,
-state,
-pincode,
-avatar,
-dob,
-gender,
-address
-}=req.body;
+const updateData = {
+  name: req.body.name,
+  phone: req.body.phone,
+  bio: req.body.bio,
+  address: req.body.address,
+  village: req.body.village,
+  district: req.body.district,
+  state: req.body.state,
+  pincode: req.body.pincode,
+  dob: req.body.dob,
+  gender: req.body.gender,
+  emergency: req.body.emergency
+};
 
-const updated=await User.findByIdAndUpdate(
+if (req.file) {
+  updateData.avatar = `/uploads/avatars/${req.file.filename}`;
+}
 
-req.user.id,
-{
-name,
-phone,
-bio,
-emergency,
-village,
-district,
-state,
-pincode,
-avatar,
-dob,
-gender,
-address
-},
-{new:true}
-
+const updated = await User.findByIdAndUpdate(
+  req.user.id,
+  updateData,
+  { new: true }
 ).select("-password");
 
 res.json({
-success:true,
-msg:"Profile updated successfully",
-user:updated
+  success: true,
+  user: updated
 });
 
-}catch(err){
+} catch (err) {
 
 console.error(err);
-res.status(500).json({error:"Server error"});
+
+res.status(500).json({
+  success: false
+});
 
 }
 
 });
-
 
 /* ================= PINCODE LOOKUP ================= */
 

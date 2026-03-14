@@ -2,11 +2,16 @@ const bcrypt = require("bcryptjs");
 const Client = require("../models/clientschem");
 const generateToken = require("../utils/jwt");
 const jwt = require("jsonwebtoken");
-
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
+const { OAuth2Client } = require("google-auth-library");
+const sgMail = require("@sendgrid/mail");
 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 /* ================= UPLOAD DIR ================= */
 
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
@@ -174,6 +179,255 @@ app.post("/api/clintlogin", async (req, res) => {
 
 });
 
+
+/* ================= FORGOT PASSWORD ================= */
+app.post("/api/forgot-passwordd",async (req, res) => {
+
+  try {
+
+    const { email } = req.body;
+
+    const user = await Client.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "Email not registered" });
+    }
+
+    // generate raw token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    // hash token for DB
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.resetPasswordToken = hashedToken;
+
+    // expire in 15 minutes
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+
+    await user.save();
+
+    const resetLink =
+      `${process.env.FRONTEND_URL_PROD}/reset-password?token=${resetToken}`;
+
+   const msg = {
+  to: email,
+  from: "kaushalsharma97299@gmail.com",
+  subject: "Reset Your Password",
+  html: `
+  <div style="background:#f4f6f8;padding:40px 0;font-family:Arial,Helvetica,sans-serif">
+
+    <div style="max-width:520px;margin:auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.08)">
+
+      <!-- HEADER -->
+      <div style="background:#111827;padding:25px;text-align:center">
+        <img src="https://yourdomain.com/logo.png" alt="Company Logo" style="height:40px"/>
+        <h1 style="color:#ffffff;font-size:20px;margin-top:10px">
+          carbooking
+        </h1>
+      </div>
+
+      <!-- BODY -->
+      <div style="padding:30px;text-align:center">
+
+        <h2 style="color:#111;font-size:22px;margin-bottom:10px">
+          Reset Your Password
+        </h2>
+
+        <p style="color:#555;font-size:14px;line-height:1.6">
+          We received a request to reset your password.
+          Click the button below to create a new password.
+        </p>
+
+        <!-- BUTTON -->
+        <div style="margin:30px 0">
+          <a href="${resetLink}" target="_blank"
+            style="
+            background:#10b981;
+            color:#ffffff;
+            padding:14px 30px;
+            border-radius:6px;
+            text-decoration:none;
+            font-weight:600;
+            font-size:14px;
+            display:inline-block">
+            Reset Password
+          </a>
+        </div>
+
+        <p style="font-size:13px;color:#666">
+          This password reset link will expire in <b>15 minutes</b>.
+        </p>
+
+        <!-- FALLBACK LINK -->
+        <p style="font-size:12px;color:#888;margin-top:20px">
+          If the button doesn't work, copy and paste this link into your browser:
+        </p>
+
+        <p style="font-size:12px;color:#2563eb;word-break:break-all">
+          ${resetLink}
+        </p>
+
+        <hr style="margin:30px 0;border:none;border-top:1px solid #eee"/>
+
+        <p style="font-size:12px;color:#999">
+          If you didn't request a password reset, you can safely ignore this email.
+        </p>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#f9fafb;padding:20px;text-align:center">
+
+        <p style="font-size:12px;color:#666;margin:0">
+          Need help? Contact us at
+        </p>
+
+        <p style="font-size:12px;color:#2563eb;margin:5px 0">
+          support@yourcompany.com
+        </p>
+
+        <p style="font-size:11px;color:#aaa;margin-top:10px">
+          © 2026 Your Company. All rights reserved.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+  `,
+};
+
+    await sgMail.send(msg);
+
+    res.json({
+      success: true,
+      message: "Reset link sent",
+    });
+
+  } catch (err) {
+
+    console.log("FORGOT PASSWORD ERROR:", err);
+
+    res.status(500).json({ message: "Failed" });
+
+  }
+
+});
+/* ================= RESET PASSWORD ================= */
+
+const crypto = require("crypto");
+
+/* ================= RESET PASSWORD ================= */
+
+app.post("/api/reset-passwordd",async (req, res) => {
+
+  try {
+
+    const { token, password } = req.body;
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await Client.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Token invalid or expired",
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    user.password = hash;
+
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password updated",
+    });
+
+  } catch (err) {
+
+    console.log("RESET PASSWORD ERROR:", err);
+
+    res.status(500).json({ message: "Failed" });
+
+  }
+
+});
+
+
+/* ================= GOOGLE LOGIN ================= */
+app.post("/api/google-log", async (req, res) => {
+
+  try {
+
+    const { token } = req.body;
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    const email = payload.email;
+    const name = payload.name;
+    const avatar = payload.picture;
+
+    let user = await Client.findOne({ email });
+
+    if (!user) {
+
+      // temporary password generate
+      const tempPassword = Math.random().toString(36).slice(-10);
+
+      const hash = await bcrypt.hash(tempPassword, 10);
+
+      user = await Client.create({
+        name,
+        email,
+        password: hash,
+        avatar,
+      });
+
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    const jwtToken = generateToken(user, "client");
+
+    res.json({
+      success: true,
+      token: jwtToken,
+      user,
+    });
+
+  } catch (err) {
+
+    console.log("GOOGLE LOGIN ERROR:", err);
+
+    res.status(500).json({
+      message: "Google login failed",
+    });
+
+  }
+
+});
 
 /* ================================================= */
 /* ================= PROFILE ======================= */
@@ -375,7 +629,7 @@ app.put(
 /* ================= PINCODE ======================= */
 /* ================================================= */
 
-app.get("/api/pincode/:code", async (req, res) => {
+app.get("/api/pincodee:code", async (req, res) => {
 
   try {
 

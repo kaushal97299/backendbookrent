@@ -53,6 +53,16 @@ const clientSchema = new mongoose.Schema(
       select: false,
     },
 
+    provider: {
+  type: String,
+  enum: ["local", "google"],
+  default: "local",
+},
+
+googleId: {
+  type: String,
+  default: "",
+},
     /* ================= PROFILE ================= */
 
     phone: {
@@ -157,6 +167,16 @@ const clientSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    resetPasswordToken: {
+  type: String,
+  default: null
+},
+
+resetPasswordExpire: {
+  type: Date,
+  default: null
+}
   },
   {
     timestamps: true,
